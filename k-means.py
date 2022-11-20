@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-image = cv2.imread("aachen_000001_000019_leftImg8bit.jpg")
+image = cv2.imread("aachen_000001_000019_leftImg8bit.png")
 # convert to RGB
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # reshape the image to a 2D array of pixels and 3 color values (RGB)
@@ -15,7 +15,7 @@ pixel_values = np.float32(pixel_values)
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
 
 # number of clusters (K)
-k = 3
+k = 8
 _, labels, (centers) = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_PP_CENTERS)
 
 # convert back to 8 bit values
@@ -32,3 +32,4 @@ segmented_image = segmented_image.reshape(image.shape)
 # show the image
 plt.imshow(segmented_image)
 plt.show()
+print(segmented_image)
