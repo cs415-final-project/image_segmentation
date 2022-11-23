@@ -1,4 +1,3 @@
-from turtle import color
 import torch
 import numpy as np
 from torchvision import transforms
@@ -40,6 +39,13 @@ class ToTensor:
     def __call__(self, input):
         return torch.as_tensor(input, dtype=torch.float32)
 
+
+class ToTensorSwap:
+    """
+    Convert into a tensor of float32: differently from transforms.ToTensor() this function does not normalize the values in [0,1] and does not swap the dimensions
+    """
+    def __call__(self, input):
+        return torch.as_tensor(input, dtype=torch.uint8).permute(2,0,1)
 
 class ToNumpy:
     """
@@ -94,11 +100,10 @@ class Cityscapes(VisionDataset):
 
         image = np.array(Image.open(image_path), dtype=np.float32)
         label = np.array(Image.open(label_path), dtype=np.float32)
-
+        
         
         image = MeanSubtraction(self.mean)(image)
         label = Map(self.mapper)(label)
-        
         if self.transforms and self.train:
             seed = np.random.randint(10000)
             torch.manual_seed(seed)
@@ -113,12 +118,12 @@ class Cityscapes(VisionDataset):
 
 #Utility function
 def printImageLabel(image, label):
-    info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
+    info = json.load(open("./data/Cityscapes/info.json"))
     mean = torch.as_tensor(info["mean"])
     image = (image.permute(1, 2, 0) + mean).permute(2, 0, 1)
     mapper = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
     fig, axs = plt.subplots(1,2, figsize=(10,5))
-    composed = torchvision.transforms.Compose([ToNumpy(), Map2(mapper), transforms.ToTensor(), transforms.ToPILImage()])
+    composed = torchvision.transforms.Compose([ToNumpy(), Map2(mapper), ToTensorSwap(), transforms.ToPILImage()])
     axs[0].imshow(transforms.ToPILImage()(image.to(torch.uint8)))
     axs[1].imshow(composed(label))
     plt.show()
