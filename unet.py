@@ -19,7 +19,7 @@ class DoubleConv(nn.Module):
 
 class UNET(nn.Module):
     def __init__(
-            self, in_channels=3, out_channels=1, features=[64, 128, 256, 512],
+            self, in_channels=3, out_channels=19, features=[64, 128, 256, 512],
     ):
         super(UNET, self).__init__()
         self.ups = nn.ModuleList()
@@ -66,11 +66,9 @@ class UNET(nn.Module):
 
         return self.final_conv(x)
 
-def test():
-    x = torch.randn((3, 1, 161, 161))
-    model = UNET(in_channels=1, out_channels=1)
-    preds = model(x)
-    assert preds.shape == x.shape
 
 if __name__ == "__main__":
-    test()
+    x = torch.randn((1, 3, 512, 1024))
+    model = UNET(in_channels=3, out_channels=19)
+    preds = model(x)
+    print(preds.shape)
