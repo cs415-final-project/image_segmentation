@@ -151,7 +151,7 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
                 if miou > max_miou:
                     max_miou = miou
                     os.makedirs(save_model_path, exist_ok=True)
-                    torch.save(model.module.state_dict(),
+                    torch.save(model.state_dict(),
                             os.path.join(save_model_path, 'best_model.pth'))
 
                 #writer.add_scalar('epoch/precision_val', precision, epoch)
