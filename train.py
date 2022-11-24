@@ -61,7 +61,6 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
             inter, union = batch_intersection_union(predict, label, 19)
             inter_record += inter
             union_record += union
-            
             #compute per pixel accuracy
             pixel_acc_record += pixelAccuracy(torch.argmax(predict, dim=1), label)
 
@@ -71,18 +70,18 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
                 save_image(torch.argmax(predict, dim=1).float(), f"{save_path}/img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
-    mIoU = inter_record/union_record
-
+    per_class_mIoU = inter_record/union_record
+    for (c, IoU) in enumerate(per_class_mIoU):
+        print(f"Class = {c}: IoU = {IoU}")
+    total_inter = inter_record.sum()
+    total_union = union_record.sum()
+    total_mIoU = total_inter/total_union
     print('precision per pixel for test: %.3f' % precision)
-    print('mIoU for validation: %.3f' % mIoU)
-    return precision, mIoU #precision, miou 
+    print('mIoU for validation: %.3f' % total_mIoU)
+    return precision, total_mIoU #precision, miou 
 
 
 def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=50, batch_size=4, validation_step=1, save_model_path="output/segmentation/checkpoints/"):             
-
-    
-    #Create the scaler
-    # scaler = amp.GradScaler() 
     
     #Writer
     #writer = SummaryWriter(f"{args.tensorboard_logdir}{suffix}")
