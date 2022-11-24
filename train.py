@@ -1,0 +1,164 @@
+import numpy as np
+import torch
+import torchvision
+import torchvision.transforms as T
+from torch.utils.data import DataLoader
+from unet import UNET
+import torch.nn.functional as F
+import torch.cuda.amp as amp
+#from tensorboardX import SummaryWriter
+from tqdm import tqdm
+import os
+from torchvision.utils import save_image
+import json
+from cityscapes import Cityscapes, printImageLabel
+from eval import batch_intersection_union, pixelAccuracy
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+crop_width = 512
+crop_height = 256
+composed = T.Compose([T.ToTensor(), T.RandomHorizontalFlip(p=0.5), T.RandomAffine(0, scale=[0.75, 2.0]), T.RandomCrop((crop_height, crop_width), pad_if_needed=True)])
+train_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
+val_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=False, info_file="info.json", transforms=composed)
+
+batch_size = 4
+lr = 1e-3
+weight_decay = 0.0005
+
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
+
+
+model = UNET(3, 19).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+
+def val(model, dataloader, validation_run, save_path="output/images", save_images_step=1):
+    print(f"{'#'*10} VALIDATION {'#' * 10}")
+    val_size = len(dataloader)
+    #prepare info_file to save examples
+    info = json.load(open("data/Cityscapes/info.json"))
+    palette = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
+    mean = torch.as_tensor(info["mean"]).to(device)
+    
+    with torch.no_grad():
+        model.eval() #set the model in the evaluation mode
+        inter_record = 0
+        union_record = 0
+        pixel_acc_record = 0
+
+        for i, (image, label) in enumerate(tqdm(dataloader)): 
+            label = label.type(torch.LongTensor)
+            label = label.long().to(device)
+            image = image.to(device)
+
+            #get RGB predict image
+            predict = model(image)
+
+            # compute intersection and union metrics
+            inter, union = batch_intersection_union(predict, label, 19)
+            inter_record += inter
+            union_record += union
+            
+            #compute per pixel accuracy
+            pixel_acc_record += pixelAccuracy(torch.argmax(predict, dim=1), label)
+
+            #Save the image
+            if save_path is not None and i % save_images_step == 0 : 
+                os.makedirs(save_path, exist_ok=True)
+                save_image(f"{save_path}/img_{validation_run}_{i}.png")
+    
+    precision = pixel_acc_record/val_size
+    mIoU = inter_record/union_record
+
+    print('precision per pixel for test: %.3f' % precision)
+    print('mIoU for validation: %.3f' % mIoU)
+    return precision, mIoU #precision, miou 
+
+
+def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=50, batch_size=4, validation_step=1, save_model_path="output/segmentation/checkpoints/"):             
+
+    
+    #Create the scaler
+    # scaler = amp.GradScaler() 
+    
+    #Writer
+    #writer = SummaryWriter(f"{args.tensorboard_logdir}{suffix}")
+    
+    #Set the loss of G
+    loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
+    
+    max_miou = 0
+    step = 0
+    total = 0
+
+    for epoch in range(epoch_start_i, num_epochs):
+
+        #Set the model to train mode
+        model.train()
+
+        #TQDM Setting
+        total = total + batch_size
+        tq = tqdm(total) 
+        tq.set_description('epoch %d, lr %f' % (epoch, lr))
+        
+        #Loss array
+        loss_seg_record = [] 
+
+        for (images, labels) in train_loader:
+            #Train with source
+            labels = labels.long()
+            images = images.to(device)
+            labels = labels.to(device)
+            # print(f"lables: {images}")
+            optimizer.zero_grad()
+
+            output = model(images)
+                
+            # print(f"logits: {output}")
+            loss_seg = loss_func(output, labels)                                                             
+
+            loss_seg.backward() 
+
+            optimizer.step()
+          
+            #Print statistics
+            tq.update(batch_size)
+            tq.set_postfix({"loss_seg" : f'{loss_seg:.6f}'})
+            step += 1
+            #writer.add_scalar('loss_seg_step', loss_seg, step)
+            loss_seg_record.append(loss_seg.item())
+
+    
+        tq.close()
+
+        #Loss_seg
+        loss_train_seg_mean = np.mean(loss_seg_record)
+        #writer.add_scalar('epoch/loss_epoch_train_seg', float(loss_train_seg_mean), epoch)
+        print(f'Average loss_seg for epoch {epoch}: {loss_train_seg_mean}')
+
+        #Checkpoint step
+        #if epoch % args.checkpoint_step == 0 and epoch != 0:
+        #    if not os.path.isdir(args.save_model_path):
+        #        os.mkdir(args.save_model_path)
+        #    torch.save(model.module.state_dict(), os.path.join(args.save_model_path, 'latest_model.pth'))
+        #    torch.save(discriminator.module.state_dict(), os.path.join(args.save_model_path, 'latest_discriminator.pth'))
+        
+        #Validation step
+        if epoch % validation_step == 0:
+                precision, miou = val(model, valloader, epoch)
+                #Check if the current model is the best one
+                if miou > max_miou:
+                    max_miou = miou
+                    os.makedirs(save_model_path, exist_ok=True)
+                    torch.save(model.module.state_dict(),
+                            os.path.join(save_model_path, 'best_model.pth'))
+
+                #writer.add_scalar('epoch/precision_val', precision, epoch)
+                #writer.add_scalar('epoch/overall miou val', miou, epoch)
+                print(f"Validation precision: {precision}")
+                print(f"Validation miou: {miou}")
+
+train(model, optimizer, train_loader, val_loader)
