@@ -13,27 +13,21 @@ from torchvision.utils import save_image
 import json
 from cityscapes import Cityscapes, printImageLabel
 from eval import batch_intersection_union, pixelAccuracy
+import argparse
+import sys
+
+
+parser = argparse.ArgumentParser('train u-net network for semantic segmentation')
+parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=50)
+parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=bool, default=True)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 
 crop_width = 512
 crop_height = 256
 composed = T.Compose([T.ToTensor(), T.RandomHorizontalFlip(p=0.5), T.RandomAffine(0, scale=[0.75, 2.0]), T.RandomCrop((crop_height, crop_width), pad_if_needed=True)])
 train_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
 val_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=False, info_file="info.json", transforms=composed)
-
-batch_size = 4
-lr = 1e-3
-weight_decay = 0.0005
-
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
-
-
-model = UNET(3, 19).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-
 
 def val(model, dataloader, validation_run, save_path="output/images", save_images_step=1):
     print(f"{'#'*10} VALIDATION {'#' * 10}")
@@ -81,17 +75,19 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
     return precision, total_mIoU #precision, miou 
 
 
-def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=50, batch_size=4, validation_step=1, save_model_path="output/segmentation/checkpoints/"):             
+def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs=50, batch_size=4, validation_step=1, save_model_path="output/segmentation/checkpoints/", softmax_layer=True):             
     
     #Writer
     #writer = SummaryWriter(f"{args.tensorboard_logdir}{suffix}")
     
     #Set the loss of G
-    loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
+    if softmax_layer == True:
+        loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
+    else:
+        loss_func = torch.nn.MSELoss()
     
     max_miou = 0
     step = 0
-    total = 0
 
     for epoch in range(epoch_start_i, num_epochs):
 
@@ -99,8 +95,8 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
         model.train()
 
         #TQDM Setting
-        tq = tqdm(total = len(trainloader) * batch_size) 
-        tq.set_description('epoch %d, lr %f' % (epoch, lr))
+        tq = tqdm(total = len(train_loader) * batch_size) 
+        tq.set_description('epoch %d' % (epoch))
         
         #Loss array
         loss_seg_record = [] 
@@ -159,5 +155,27 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
                 print(f"Validation precision: {precision}")
                 print(f"Validation miou: {miou}")
 
-train(model, optimizer, train_loader, val_loader)
-precision, miou = val(model, train_loader, 0)
+try:
+    args = parser.parse_args()
+except:
+    parser.print_help()
+    sys.exit(0)
+
+def main():
+    batch_size = 4
+    lr = 1e-3
+    weight_decay = 0.0005
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
+
+    if args.softmax_layer == True:
+        model = UNET(3, 19).to(device)
+    else:
+        # We directly let the U-Net to output the correct label, instead of logits
+        model = UNET(3, 1).to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    train(model, optimizer, train_loader, val_loader, num_epochs=args.epochs, softmax_layer=args.softmax_layer)
+
+if __name__ == '__main__':
+    main()
