@@ -68,7 +68,7 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
             #Save the image
             if save_path is not None and i % save_images_step == 0 : 
                 os.makedirs(save_path, exist_ok=True)
-                save_image(f"{save_path}/img_{validation_run}_{i}.png")
+                save_image(torch.argmax(predict, dim=1).float(), f"{save_path}/img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
     mIoU = inter_record/union_record
@@ -100,8 +100,7 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
         model.train()
 
         #TQDM Setting
-        total = total + batch_size
-        tq = tqdm(total) 
+        tq = tqdm(total = len(trainloader) * batch_size) 
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         
         #Loss array
@@ -160,5 +159,5 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
                 #writer.add_scalar('epoch/overall miou val', miou, epoch)
                 print(f"Validation precision: {precision}")
                 print(f"Validation miou: {miou}")
-
+precision, miou = val(model, train_loader, 0)
 train(model, optimizer, train_loader, val_loader)

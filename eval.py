@@ -32,7 +32,7 @@ def pixelAccuracy(imPred, imLab):
     """
     # Remove classes from unlabeled pixels in gt image.
     # We should not penalize detections in unlabeled portions of the image.
-    pixel_labeled = np.sum(imLab >= 0)
-    pixel_correct = np.sum((imPred == imLab) * (imLab >= 0))
+    pixel_labeled = (imLab >= 0).sum()
+    pixel_correct = ((imPred == imLab) * (imLab >= 0)).sum()
     pixel_accuracy = 1.0 * pixel_correct / pixel_labeled
-    return (pixel_accuracy, pixel_correct, pixel_labeled)
+    return pixel_accuracy
