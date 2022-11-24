@@ -29,7 +29,7 @@ composed = T.Compose([T.ToTensor(), T.RandomHorizontalFlip(p=0.5), T.RandomAffin
 train_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
 val_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=False, info_file="info.json", transforms=composed)
 
-def val(model, dataloader, validation_run, save_path="output/images", save_images_step=1):
+def val(model, dataloader, validation_run, save_path="output/images", save_images_step=100):
     print(f"{'#'*10} VALIDATION {'#' * 10}")
     val_size = len(dataloader)
     #prepare info_file to save examples
