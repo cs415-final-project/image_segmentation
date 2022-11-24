@@ -77,9 +77,6 @@ class PSPNet(nn.Module):
 
     def forward(self, x, y=None):
         x_size = x.size()
-        assert (x_size[2]-1) % 8 == 0 and (x_size[3]-1) % 8 == 0
-        h = int((x_size[2] - 1) / 8 * self.zoom_factor + 1)
-        w = int((x_size[3] - 1) / 8 * self.zoom_factor + 1)
 
         x = self.layer0(x)
         x = self.layer1(x)
@@ -89,15 +86,20 @@ class PSPNet(nn.Module):
         if self.use_ppm:
             x = self.ppm(x)
         x = self.cls(x)
-        if self.zoom_factor != 1:
-            x = F.interpolate(x, size=(h, w), mode='bilinear', align_corners=True)
 
         if self.training:
             aux = self.aux(x_tmp)
-            if self.zoom_factor != 1:
-                aux = F.interpolate(aux, size=(h, w), mode='bilinear', align_corners=True)
             main_loss = self.criterion(x, y)
             aux_loss = self.criterion(aux, y)
             return x.max(1)[1], main_loss, aux_loss
         else:
             return x
+
+def test():
+    x = torch.randn((100, 3, 256, 512))
+    model = PSPNet(classes=19, pretrained=False)
+    y = model(x)
+    print(y.shape)
+
+if __name__ == '__main__':
+    test()
