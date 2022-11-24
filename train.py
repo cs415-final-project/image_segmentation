@@ -159,5 +159,6 @@ def train(model, optimizer, trainloader, valloader, epoch_start_i=0, num_epochs=
                 #writer.add_scalar('epoch/overall miou val', miou, epoch)
                 print(f"Validation precision: {precision}")
                 print(f"Validation miou: {miou}")
-precision, miou = val(model, train_loader, 0)
+
 train(model, optimizer, train_loader, val_loader)
+precision, miou = val(model, train_loader, 0)
