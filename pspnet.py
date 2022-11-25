@@ -95,7 +95,7 @@ class PSPNet(nn.Module):
             return x
 
 def test():
-    x = torch.randn((4, 3, 256, 512))
+    x = torch.randn((1, 3, 256, 512))
     model = PSPNet(classes=19, pretrained=False)
     y = model(x)
     print(y.shape)

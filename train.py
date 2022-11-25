@@ -82,8 +82,10 @@ def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs
     
     #Set the loss of G
     if softmax_layer == True:
+        model_name = "best_model.pth"
         loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
     else:
+        model_name = "best_model_mse.pth"
         loss_func = torch.nn.MSELoss()
     
     max_miou = 0
@@ -148,7 +150,7 @@ def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs
                     max_miou = miou
                     os.makedirs(save_model_path, exist_ok=True)
                     torch.save(model.state_dict(),
-                            os.path.join(save_model_path, 'best_model.pth'))
+                            os.path.join(save_model_path, model_name))
 
                 #writer.add_scalar('epoch/precision_val', precision, epoch)
                 #writer.add_scalar('epoch/overall miou val', miou, epoch)
