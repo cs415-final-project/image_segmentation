@@ -9,7 +9,7 @@ import torch.cuda.amp as amp
 #from tensorboardX import SummaryWriter
 from tqdm import tqdm
 import os
-from torchvision.utils import save_image
+from utils import save_images
 import json
 from cityscapes import Cityscapes, printImageLabel
 from eval import batch_intersection_union, pixelAccuracy
@@ -61,7 +61,7 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
             #Save the image
             if save_path is not None and i % save_images_step == 0 : 
                 os.makedirs(save_path, exist_ok=True)
-                save_image(torch.argmax(predict, dim=1).float(), f"{save_path}/img_{validation_run}_{i}.png")
+                save_images(palette, predict=torch.argmax(predict, dim=1).cpu().numpy(), path_to_save=f"{save_path}/img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
     per_class_mIoU = inter_record/union_record
