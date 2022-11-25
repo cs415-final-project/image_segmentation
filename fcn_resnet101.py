@@ -3,6 +3,13 @@ from PIL import Image
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
+def assign_palette():
+    # create a color pallette, selecting a color for each class
+    palette = torch.tensor([2 ** 25 - 1, 2 ** 15 - 1, 2 ** 21 - 1])
+    colors = torch.as_tensor([i for i in range(21)])[:, None] * palette
+    colors = (colors % 255).numpy().astype("uint8")
+
+
 def eval(model):
     model.eval()
     input_image = Image.open('data/Cityscapes/images/zurich_000014_000019_leftImg8bit.png')
@@ -22,7 +29,7 @@ def eval(model):
         output = model(input_batch)['out'][0]
     output_predictions = output.argmax(0)
 
-    plt.imsave("output.png", output_predictions)
+    plt.imsave("output.png", output_predictions.cpu().numpy())
 
 def main():
     model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet101', pretrained=True)
