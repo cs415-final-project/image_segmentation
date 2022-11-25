@@ -25,17 +25,17 @@ class PPM(nn.Module):
         return torch.cat(out, 1)
 
 class PSPNet(nn.Module):
-    def __init__(self, layers=50, bins=(1, 2, 3, 6), dropout=0.1, classes=2, zoom_factor=8, use_ppm=True, criterion=nn.CrossEntropyLoss(ignore_index=255), pretrained=True):
+    def __init__(self, layers=18, bins=(1, 2, 3, 6), dropout=0.1, classes=19, use_ppm=True, criterion=nn.CrossEntropyLoss(ignore_index=255), pretrained=True):
         super(PSPNet, self).__init__()
-        assert layers in [50, 101, 152]
+        assert layers in [18, 50, 101, 152]
         assert 2048 % len(bins) == 0
         assert classes > 1
-        assert zoom_factor in [1, 2, 4, 8]
-        self.zoom_factor = zoom_factor
         self.use_ppm = use_ppm
         self.criterion = criterion
 
-        if layers == 50:
+        if layers == 18:
+            resnet = models.resnet18(pretrained=pretrained)
+        elif layers == 50:
             resnet = models.resnet50(pretrained=pretrained)
         elif layers == 101:
             resnet = models.resnet101(pretrained=pretrained)
@@ -64,6 +64,7 @@ class PSPNet(nn.Module):
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
             nn.Dropout2d(p=dropout),
+            nn.Conv2d(fea_dim, out_channels=512, kernel_size=3), 
             nn.Conv2d(512, classes, kernel_size=1)
         )
         if self.training:
@@ -76,8 +77,6 @@ class PSPNet(nn.Module):
             )
 
     def forward(self, x, y=None):
-        x_size = x.size()
-
         x = self.layer0(x)
         x = self.layer1(x)
         x = self.layer2(x)
@@ -96,7 +95,7 @@ class PSPNet(nn.Module):
             return x
 
 def test():
-    x = torch.randn((100, 3, 256, 512))
+    x = torch.randn((4, 3, 256, 512))
     model = PSPNet(classes=19, pretrained=False)
     y = model(x)
     print(y.shape)
