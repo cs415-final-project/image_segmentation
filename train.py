@@ -4,6 +4,7 @@ import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from unet import UNET
+from unet_dilated import UNET as DUNET
 import torch.nn.functional as F
 import torch.cuda.amp as amp
 #from tensorboardX import SummaryWriter
@@ -20,6 +21,7 @@ import sys
 parser = argparse.ArgumentParser('train u-net network for semantic segmentation')
 parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=50)
 parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=bool, default=True)
+parser.add_argument('--dilation',help='choose the model', type=bool, default=False)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -169,10 +171,16 @@ def main():
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
     if args.softmax_layer == True:
-        model = UNET(3, 19).to(device)
+        if args.dilation == True:
+            model = DUNET(3, 19).to(device)
+        else:
+            model = UNET(3,19).to(device)
     else:
         # We directly let the U-Net to output the correct label, instead of logits
-        model = UNET(3, 1).to(device)
+        if args.dilation == True:
+            model = DUNET(3, 1).to(device)
+        else:
+            model = UNET(3,19).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     train(model, optimizer, train_loader, val_loader, num_epochs=args.epochs, softmax_layer=args.softmax_layer)
