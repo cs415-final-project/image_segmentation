@@ -97,7 +97,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
     max_miou = 0
     step = 0
 
-    for epoch in range(args.start_epoch, args.num_epochs):
+    for epoch in range(args.start_epoch, args.epochs):
 
         #Set the model to train mode
         model.train()
@@ -143,11 +143,11 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
         
         #Validation step
         if epoch % validation_step == 0:
-                precision, miou = val(model, valloader, epoch)
+                precision, miou = val(args, model, valloader, epoch)
                 #Check if the current model is the best one
                 if miou > max_miou:
                     max_miou = miou
-                    os.makedirs(args.chckpoint_path, exist_ok=True)
+                    os.makedirs(args.checkpoint_path, exist_ok=True)
                     torch.save(model.state_dict(),
                             os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth"))
 
