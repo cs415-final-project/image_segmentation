@@ -1,27 +1,31 @@
 import numpy as np
 import torch
-import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from unet import UNET
 from unet_dilated import UNET as DUNET
-import torch.nn.functional as F
-import torch.cuda.amp as amp
-#from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 from tqdm import tqdm
 import os
 from utils import save_images
 import json
-from cityscapes import Cityscapes, printImageLabel
+from cityscapes import Cityscapes
 from eval import batch_intersection_union, pixelAccuracy
 import argparse
 import sys
 
 
 parser = argparse.ArgumentParser('train u-net network for semantic segmentation')
-parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=50)
+parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=30)
+parser.add_argument('--start_epoch', help='the number of the first epoch (useful for restarting from a checkpoint)', type=int, default=0)
 parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=bool, default=True)
-parser.add_argument('--dilation',help='choose the model', type=bool, default=False)
+parser.add_argument('--dilation',help='whether to use DilatedNet (True) or UNet (False)', type=bool, default=False)
+parser.add_argument('--checkpoint_path',help='path for saving the best model', type=str, default="output/segmentation/checkpoint/")
+parser.add_argument('--output_path',help='path for saving the predictions of the model', type=str, default="output/segmentation/images/")
+parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
+parser.add_argument('--save_images_step',help='step for saving predictions output during validation', type=int, default=100)
+
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -31,13 +35,13 @@ composed = T.Compose([T.ToTensor(), T.RandomHorizontalFlip(p=0.5), T.RandomAffin
 train_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
 val_data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=False, info_file="info.json", transforms=composed)
 
-def val(model, dataloader, validation_run, save_path="output/images", save_images_step=100):
+def val(args, model, dataloader, validation_run):
     print(f"{'#'*10} VALIDATION {'#' * 10}")
     val_size = len(dataloader)
     #prepare info_file to save examples
     info = json.load(open("data/Cityscapes/info.json"))
     palette = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
-    mean = torch.as_tensor(info["mean"]).to(device)
+    #mean = torch.as_tensor(info["mean"]).to(device)
     
     with torch.no_grad():
         model.eval() #set the model in the evaluation mode
@@ -61,9 +65,9 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
             pixel_acc_record += pixelAccuracy(torch.argmax(predict, dim=1), label)
 
             #Save the image
-            if save_path is not None and i % save_images_step == 0 : 
-                os.makedirs(save_path, exist_ok=True)
-                save_images(palette, predict=torch.argmax(predict, dim=1).cpu().numpy(), path_to_save=f"{save_path}/img_{validation_run}_{i}.png")
+            if args.output_path is not None and i % args.save_images_step == 0 : 
+                os.makedirs(args.output_path, exist_ok=True)
+                save_images(palette, predict=torch.argmax(predict, dim=1).cpu().numpy(), path_to_save=f"{args.output_path}img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
     per_class_mIoU = inter_record/union_record
@@ -77,23 +81,23 @@ def val(model, dataloader, validation_run, save_path="output/images", save_image
     return precision, total_mIoU #precision, miou 
 
 
-def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs=50, batch_size=4, validation_step=1, save_model_path="output/segmentation/checkpoints/", softmax_layer=True):             
-    
-    #Writer
-    #writer = SummaryWriter(f"{args.tensorboard_logdir}{suffix}")
+def train(args, model, optimizer, train_loader, valloader, batch_size=4, validation_step=1):             
     
     #Set the loss of G
-    if softmax_layer == True:
-        model_name = "best_model.pth"
+    if args.softmax_layer == True:
+        model_name = "unet_ce" if args.dilation == False else "dilated_ce"
         loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
     else:
-        model_name = "best_model_mse.pth"
+        model_name = "unet_mse" if args.dilation == False else "dilated_mse"
         loss_func = torch.nn.MSELoss()
+
+    #Writer
+    writer = SummaryWriter(f"{args.tensorboard_logdir}{model_name}")
     
     max_miou = 0
     step = 0
 
-    for epoch in range(epoch_start_i, num_epochs):
+    for epoch in range(args.start_epoch, args.num_epochs):
 
         #Set the model to train mode
         model.train()
@@ -126,7 +130,7 @@ def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs
             tq.update(batch_size)
             tq.set_postfix({"loss_seg" : f'{loss_seg:.6f}'})
             step += 1
-            #writer.add_scalar('loss_seg_step', loss_seg, step)
+            writer.add_scalar('loss_seg_step', loss_seg, step)
             loss_seg_record.append(loss_seg.item())
 
     
@@ -134,15 +138,8 @@ def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs
 
         #Loss_seg
         loss_train_seg_mean = np.mean(loss_seg_record)
-        #writer.add_scalar('epoch/loss_epoch_train_seg', float(loss_train_seg_mean), epoch)
+        writer.add_scalar('epoch/loss_epoch_train_seg', float(loss_train_seg_mean), epoch)
         print(f'Average loss_seg for epoch {epoch}: {loss_train_seg_mean}')
-
-        #Checkpoint step
-        #if epoch % args.checkpoint_step == 0 and epoch != 0:
-        #    if not os.path.isdir(args.save_model_path):
-        #        os.mkdir(args.save_model_path)
-        #    torch.save(model.module.state_dict(), os.path.join(args.save_model_path, 'latest_model.pth'))
-        #    torch.save(discriminator.module.state_dict(), os.path.join(args.save_model_path, 'latest_discriminator.pth'))
         
         #Validation step
         if epoch % validation_step == 0:
@@ -150,12 +147,12 @@ def train(model, optimizer, train_loader, valloader, epoch_start_i=0, num_epochs
                 #Check if the current model is the best one
                 if miou > max_miou:
                     max_miou = miou
-                    os.makedirs(save_model_path, exist_ok=True)
+                    os.makedirs(args.chckpoint_path, exist_ok=True)
                     torch.save(model.state_dict(),
-                            os.path.join(save_model_path, model_name))
+                            os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth"))
 
-                #writer.add_scalar('epoch/precision_val', precision, epoch)
-                #writer.add_scalar('epoch/overall miou val', miou, epoch)
+                writer.add_scalar('epoch/precision_val', precision, epoch)
+                writer.add_scalar('epoch/overall miou val', miou, epoch)
                 print(f"Validation precision: {precision}")
                 print(f"Validation miou: {miou}")
 
@@ -185,7 +182,7 @@ def main():
             model = UNET(3,19).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    train(model, optimizer, train_loader, val_loader, num_epochs=args.epochs, softmax_layer=args.softmax_layer)
+    train(args, model, optimizer, train_loader, val_loader)
 
 if __name__ == '__main__':
     main()
