@@ -14,12 +14,17 @@ from eval import batch_intersection_union, pixelAccuracy
 import argparse
 import sys
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
+
 
 parser = argparse.ArgumentParser('train u-net network for semantic segmentation')
 parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=30)
 parser.add_argument('--start_epoch', help='the number of the first epoch (useful for restarting from a checkpoint)', type=int, default=0)
-parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=bool, default=True)
-parser.add_argument('--dilation',help='whether to use DilatedNet (True) or UNet (False)', type=bool, default=False)
+parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=boolean_string, default=True)
+parser.add_argument('--dilation',help='whether to use DilatedNet (True) or UNet (False)', type=boolean_string, default=False)
 parser.add_argument('--checkpoint_path',help='path for saving the best model', type=str, default="output/segmentation/checkpoint/")
 parser.add_argument('--output_path',help='path for saving the predictions of the model', type=str, default="output/segmentation/images/")
 parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
@@ -90,7 +95,6 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
     else:
         model_name = "unet_mse" if args.dilation == False else "dilated_mse"
         loss_func = torch.nn.MSELoss()
-
     #Writer
     writer = SummaryWriter(f"{args.tensorboard_logdir}{model_name}")
     
@@ -179,7 +183,7 @@ def main():
         if args.dilation == True:
             model = DUNET(3, 1).to(device)
         else:
-            model = UNET(3,19).to(device)
+            model = UNET(3,1).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     train(args, model, optimizer, train_loader, val_loader)
