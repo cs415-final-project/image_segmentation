@@ -115,7 +115,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
 
         for (images, labels) in train_loader:
             #Train with source
-            labels = labels.long()
+            labels = labels.long() if args.softmax_layer else labels.float()
             images = images.to(device)
             labels = labels.to(device)
             # print(f"lables: {images}")
@@ -124,7 +124,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
             output = model(images)
                 
             # print(f"logits: {output}")
-            loss_seg = loss_func(output, labels)                                                             
+            loss_seg = loss_func(output.squeeze(), labels)                                             
 
             loss_seg.backward() 
 
@@ -183,7 +183,7 @@ def main():
         if args.dilation == True:
             model = DUNET(3, 1).to(device)
         else:
-            model = UNET(3,1).to(device)
+            model = UNET(3, 1).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     train(args, model, optimizer, train_loader, val_loader)
