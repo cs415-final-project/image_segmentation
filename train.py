@@ -72,7 +72,8 @@ def val(args, model, dataloader, validation_run):
             #Save the image
             if args.output_path is not None and i % args.save_images_step == 0 : 
                 os.makedirs(args.output_path, exist_ok=True)
-                save_images(palette, predict=torch.argmax(predict, dim=1).cpu().numpy(), path_to_save=f"{args.output_path}img_{validation_run}_{i}.png")
+                output_prediction = torch.argmax(predict, dim=1).cpu().numpy() if args.softmax_layer else predict.to(torch.uint8).cpu().numpy()
+                save_images(palette, predict=output_prediction, path_to_save=f"{args.output_path}img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
     per_class_mIoU = inter_record/union_record
