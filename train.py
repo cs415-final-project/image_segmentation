@@ -4,6 +4,7 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from unet import UNET
 from unet_dilated import UNET as DUNET
+from model.build_bisenet import BiSeNet
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 import os
@@ -28,7 +29,7 @@ parser.add_argument('--dilation',help='whether to use DilatedNet (True) or UNet 
 parser.add_argument('--checkpoint_path',help='path for saving the best model', type=str, default="output/segmentation/checkpoint/")
 parser.add_argument('--output_path',help='path for saving the predictions of the model', type=str, default="output/segmentation/images/")
 parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
-parser.add_argument('--save_images_step',help='step for saving predictions output during validation', type=int, default=100)
+parser.add_argument('--save_images_step',help='step for saving predictions output during validation', type=int, default=1)
 
 
 
@@ -70,9 +71,9 @@ def val(args, model, dataloader, validation_run):
             pixel_acc_record += pixelAccuracy(torch.argmax(predict, dim=1), label)
 
             #Save the image
-            if args.output_path is not None and i % args.save_images_step == 0 : 
+            if args.output_path is not None and i % args.save_images_step == 0: 
                 os.makedirs(args.output_path, exist_ok=True)
-                output_prediction = torch.argmax(predict, dim=1).cpu().numpy() if args.softmax_layer else torch.clamp(predict, min=0, max=18).to(torch.uint8).cpu().numpy()
+                output_prediction = torch.argmax(predict, dim=1).cpu().numpy() #if args.softmax_layer else torch.clamp(predict, min=0, max=18).to(torch.uint8).cpu().numpy()
                 save_images(palette, predict=output_prediction, path_to_save=f"{args.output_path}img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
@@ -174,20 +175,23 @@ def main():
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
-    if args.softmax_layer == True:
-        if args.dilation == True:
-            model = DUNET(3, 19).to(device)
-        else:
-            model = UNET(3,19).to(device)
-    else:
-        # We directly let the U-Net to output the correct label, instead of logits
-        if args.dilation == True:
-            model = DUNET(3, 1).to(device)
-        else:
-            model = UNET(3, 1).to(device)
-
+    # if args.softmax_layer == True:
+    #     if args.dilation == True:
+    #         model = DUNET(3, 19).to(device)
+    #     else:
+    #         model = UNET(3,19).to(device)
+    # else:
+    #     # We directly let the U-Net to output the correct label, instead of logits
+    #     if args.dilation == True:
+    #         model = DUNET(3, 1).to(device)
+    #     else:
+    #         model = UNET(3, 1).to(device)
+    
+    model = BiSeNet(19, "resnet101").to(device)
+    model.module.load_state_dict(torch.load("/content/drive/MyDrive/MLDL_Project/BiSeNet/models/29May_soloresize_test2/latest_dice_loss.pth"))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    train(args, model, optimizer, train_loader, val_loader)
+    val(args, model, val_data, 0)
+    #train(args, model, optimizer, train_loader, val_loader)
 
 if __name__ == '__main__':
     main()
