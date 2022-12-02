@@ -187,8 +187,8 @@ def main():
     #     else:
     #         model = UNET(3, 1).to(device)
     
-    model = BiSeNet(19, "resnet101").to(device)
-    model.module.load_state_dict(torch.load("/content/drive/MyDrive/MLDL_Project/BiSeNet/models/29May_soloresize_test2/latest_dice_loss.pth"))
+    model = BiSeNet(19).to(device)
+    model.load_state_dict(torch.load("/content/drive/MyDrive/CS415 Segmentation/checkpoints/best_model_bisenet.pth"))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     val(args, model, val_data, 0)
     #train(args, model, optimizer, train_loader, val_loader)

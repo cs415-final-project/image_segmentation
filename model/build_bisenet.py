@@ -98,37 +98,23 @@ class FeatureFusionModule(torch.nn.Module):
 
 
 class BiSeNet(torch.nn.Module):
-    def __init__(self, num_classes, context_path):
+    def __init__(self, num_classes):
         super().__init__()
         # build spatial path
         self.spatial_path = Spatial_path()
 
         # build context_path 
-        self.context_path = build_contextpath(name=context_path)
+        self.context_path = build_contextpath()
 
         
-        if context_path == 'resnet101':
-            # build attention refinement module for resnet 101
-            self.attention_refinement_module1 = AttentionRefinementModule(1024, 1024)
-            self.attention_refinement_module2 = AttentionRefinementModule(2048, 2048)
-            # supervision block
-            self.supervision1 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
-            self.supervision2 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
-            # build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 3328)
-
-        elif context_path == 'resnet18':
-            # build attention refinement module  for resnet 18
-            self.attention_refinement_module1 = AttentionRefinementModule(256, 256)
-            self.attention_refinement_module2 = AttentionRefinementModule(512, 512)
-            # supervision block
-            self.supervision1 = nn.Conv2d(in_channels=256, out_channels=num_classes, kernel_size=1)
-            self.supervision2 = nn.Conv2d(in_channels=512, out_channels=num_classes, kernel_size=1)
-            # build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 1024)
-
-        else:
-            print(f"Error: {context_path} context_path network unsupported")
+        # build attention refinement module for resnet 101
+        self.attention_refinement_module1 = AttentionRefinementModule(1024, 1024)
+        self.attention_refinement_module2 = AttentionRefinementModule(2048, 2048)
+        # supervision block
+        self.supervision1 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
+        self.supervision2 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
+        # build feature fusion module
+        self.feature_fusion_module = FeatureFusionModule(num_classes, 3328)
 
         # build final convolution
         self.conv = nn.Conv2d(in_channels=num_classes, out_channels=num_classes, kernel_size=1)
@@ -194,21 +180,4 @@ class BiSeNet(torch.nn.Module):
 
 
 if __name__ == '__main__':
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    model = BiSeNet(32, 'resnet18')
-    # model = nn.DataParallel(model)
-
-    model = model.cuda()
-    x = torch.rand(2, 3, 256, 256)
-    record = model.parameters()
-    # for key, params in model.named_parameters():
-    #     if 'bn' in key:
-    #         params.requires_grad = False
-    from utils import group_weight
-    # params_list = []
-    # for module in model.mul_lr:
-    #     params_list = group_weight(params_list, module, nn.BatchNorm2d, 10)
-    # params_list = group_weight(params_list, model.context_path, torch.nn.BatchNorm2d, 1)
-
-    print(model.parameters())
+    pass
