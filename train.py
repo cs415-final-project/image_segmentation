@@ -22,10 +22,10 @@ def boolean_string(s):
 
 
 parser = argparse.ArgumentParser('train u-net network for semantic segmentation')
+parser.add_argument('--model', help='model architecture (unet, dunet, bisenet)', type=str, default="unet")
 parser.add_argument('--epochs', help='the number of epochs to train the model', type=int, default=30)
 parser.add_argument('--start_epoch', help='the number of the first epoch (useful for restarting from a checkpoint)', type=int, default=0)
-parser.add_argument('--softmax_layer', help='whether to add the softmax layer at the end; default is true', type=boolean_string, default=True)
-parser.add_argument('--dilation',help='whether to use DilatedNet (True) or UNet (False)', type=boolean_string, default=False)
+parser.add_argument('--mse', help='whether to use the mse loss (True) or the ce loss (False)', type=boolean_string, default=False)
 parser.add_argument('--checkpoint_path',help='path for saving the best model', type=str, default="output/segmentation/checkpoint/")
 parser.add_argument('--output_path',help='path for saving the predictions of the model', type=str, default="output/segmentation/images/")
 parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
@@ -58,7 +58,7 @@ def val(args, model, dataloader, validation_run):
         for i, (image, label) in enumerate(tqdm(dataloader)): 
             label = label.type(torch.LongTensor)
             label = label.long().to(device)
-            image = image.to(device)
+            image = image.to(device).unsqueeze(0) if args.model == "bisenet" else image.to(device) 
 
             #get RGB predict image
             predict = model(image)
@@ -73,7 +73,7 @@ def val(args, model, dataloader, validation_run):
             #Save the image
             if args.output_path is not None and i % args.save_images_step == 0: 
                 os.makedirs(args.output_path, exist_ok=True)
-                output_prediction = torch.argmax(predict, dim=1).cpu().numpy() #if args.softmax_layer else torch.clamp(predict, min=0, max=18).to(torch.uint8).cpu().numpy()
+                output_prediction = torch.clamp(predict, min=0, max=18).to(torch.uint8).cpu().numpy() if args.mse else torch.argmax(predict, dim=1).cpu().numpy()
                 save_images(palette, predict=output_prediction, path_to_save=f"{args.output_path}img_{validation_run}_{i}.png")
     
     precision = pixel_acc_record/val_size
@@ -91,11 +91,11 @@ def val(args, model, dataloader, validation_run):
 def train(args, model, optimizer, train_loader, valloader, batch_size=4, validation_step=1):             
     
     #Set the loss of G
-    if args.softmax_layer == True:
-        model_name = "unet_ce" if args.dilation == False else "dilated_ce"
+    if not args.mse:
+        model_name = f"{args.model}_ce"
         loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
     else:
-        model_name = "unet_mse" if args.dilation == False else "dilated_mse"
+        model_name = f"{args.model}_mse"
         loss_func = torch.nn.MSELoss()
     #Writer
     writer = SummaryWriter(f"{args.tensorboard_logdir}{model_name}")
@@ -117,7 +117,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
 
         for (images, labels) in train_loader:
             #Train with source
-            labels = labels.long() if args.softmax_layer else labels.float()
+            labels = labels.float() if args.mse else labels.long()
             images = images.to(device)
             labels = labels.to(device)
             # print(f"lables: {images}")
@@ -169,27 +169,29 @@ except:
     sys.exit(0)
 
 def main():
-    batch_size = 4
-    lr = 1e-3
-    weight_decay = 0.0005
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    batch_size = {"unet": 4, "dunet": 4, "bisenet": 8}
+    lr = {"unet": 1e-3, "dunet": 1e-3, "bisenet": 2.5e-4}
+    weight_decay = {"unet": 0.0005, "dunet": 0.0005, "bisenet": 4e-4}
+    train_loader = DataLoader(train_data, batch_size=batch_size[args.model], shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
-    # if args.softmax_layer == True:
-    #     if args.dilation == True:
-    #         model = DUNET(3, 19).to(device)
-    #     else:
-    #         model = UNET(3,19).to(device)
-    # else:
-    #     # We directly let the U-Net to output the correct label, instead of logits
-    #     if args.dilation == True:
-    #         model = DUNET(3, 1).to(device)
-    #     else:
-    #         model = UNET(3, 1).to(device)
-    
-    model = BiSeNet(19).to(device)
+
+    if args.model == "unet":
+        model = UNET(3, 1).to(device) if args.mse else UNET(3, 19).to(device)
+    elif args.model == "dunet":
+        model = DUNET(3, 1).to(device) if args.mse else DUNET(3, 19).to(device)
+    elif args.model == "bisenet":
+        model = BiSeNet(19).to(device)
+    else:
+        raise "Model architecture not supported!"
+
     model.load_state_dict(torch.load("/content/drive/MyDrive/CS415 Segmentation/checkpoints/best_model_bisenet.pth"))
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    if args.model in ["unet", "dunet"]:
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr[args.model], weight_decay=weight_decay[args.model])
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr[args.model], weight_decay=weight_decay[args.model], momentum=0.9)
+
     val(args, model, val_data, 0)
     #train(args, model, optimizer, train_loader, val_loader)
 
