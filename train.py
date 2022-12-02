@@ -124,7 +124,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4):
             # print(f"lables: {images}")
             optimizer.zero_grad()
 
-            output = model(images)
+            output = model(images)[0] if args.model == "bisenet" else model(images)[0]
                 
             # print(f"logits: {output}")
             loss_seg = loss_func(output.squeeze(), labels)                                             
@@ -185,8 +185,6 @@ def main():
         model = BiSeNet(19).to(device)
     else:
         raise "Model architecture not supported!"
-
-    model.load_state_dict(torch.load("/content/drive/MyDrive/CS415 Segmentation/checkpoints/best_model_bisenet.pth"))
 
     if args.model in ["unet", "dunet"]:
         optimizer = torch.optim.Adam(model.parameters(), lr=lr[args.model], weight_decay=weight_decay[args.model])
