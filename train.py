@@ -30,6 +30,7 @@ parser.add_argument('--checkpoint_path',help='path for saving the best model', t
 parser.add_argument('--output_path',help='path for saving the predictions of the model', type=str, default="output/segmentation/images/")
 parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
 parser.add_argument('--save_images_step',help='step for saving predictions output during validation', type=int, default=1)
+parser.add_argument('--validation_step',help='step for saving performing validation', type=int, default=1)
 
 
 
@@ -88,7 +89,7 @@ def val(args, model, dataloader, validation_run):
     return precision, total_mIoU #precision, miou 
 
 
-def train(args, model, optimizer, train_loader, valloader, batch_size=4, validation_step=1):             
+def train(args, model, optimizer, train_loader, valloader, batch_size=4):             
     
     #Set the loss of G
     if not args.mse:
@@ -148,7 +149,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4, validat
         print(f'Average loss_seg for epoch {epoch}: {loss_train_seg_mean}')
         
         #Validation step
-        if epoch % validation_step == 0:
+        if epoch % args.validation_step == 0:
                 precision, miou = val(args, model, valloader, epoch)
                 #Check if the current model is the best one
                 if miou > max_miou:
@@ -192,8 +193,8 @@ def main():
     else:
         optimizer = torch.optim.SGD(model.parameters(), lr=lr[args.model], weight_decay=weight_decay[args.model], momentum=0.9)
 
-    val(args, model, val_data, 0)
-    #train(args, model, optimizer, train_loader, val_loader)
+    train(args, model, optimizer, train_loader, val_loader)
+    val(args, model, val_data, "final")
 
 if __name__ == '__main__':
     main()
