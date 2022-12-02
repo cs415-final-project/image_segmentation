@@ -59,7 +59,7 @@ def val(args, model, dataloader, validation_run):
         for i, (image, label) in enumerate(tqdm(dataloader)): 
             label = label.type(torch.LongTensor)
             label = label.long().to(device)
-            image = image.to(device).unsqueeze(0) if args.model == "bisenet" else image.to(device) 
+            image = image.to(device) 
 
             #get RGB predict image
             predict = model(image)
@@ -124,10 +124,15 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4):
             # print(f"lables: {images}")
             optimizer.zero_grad()
 
-            output = model(images)[0] if args.model == "bisenet" else model(images)[0]
-                
-            # print(f"logits: {output}")
-            loss_seg = loss_func(output.squeeze(), labels)                                             
+            if args.model == "bisenet":
+                output, output_sup1, output_sup2 = model(images) 
+                loss1 = loss_func(output, labels)        
+                loss2 = loss_func(output_sup1, labels)   
+                loss3 = loss_func(output_sup2, labels)   
+                loss_seg = loss1+loss2+loss3
+            else:
+                output = model(images)
+                loss_seg = loss_func(output.squeeze(), labels)                                             
 
             loss_seg.backward() 
 
