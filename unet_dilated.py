@@ -28,7 +28,7 @@ class UNET(nn.Module):
         self.ups = nn.ModuleList()
         self.downs = nn.ModuleList()
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        dilation = [[1,1],[2,4],[4,8],[8,16]]
+        dilation = [[1,1],[2,4],[8,16],[1,1]]
 
         # Down part of UNET
         i=0
@@ -45,7 +45,7 @@ class UNET(nn.Module):
                     feature*2, feature, kernel_size=2, stride=2,
                 )
             )
-            self.ups.append(DoubleConv(feature*2, feature, reversed(dilation)[i]))
+            self.ups.append(DoubleConv(feature*2, feature,dilation[i]))
             i+=1
 
         self.bottleneck = DoubleConv(features[-1], features[-1]*2)
