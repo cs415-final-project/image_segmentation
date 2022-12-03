@@ -45,7 +45,7 @@ class UNET(nn.Module):
                     feature*2, feature, kernel_size=2, stride=2,
                 )
             )
-            self.ups.append(DoubleConv(feature*2, feature, reversed(dilation)[i]))
+            self.ups.append(DoubleConv(feature*2, feature, list(reversed(dilation))[i]))
             i+=1
 
         self.bottleneck = DoubleConv(features[-1], features[-1]*2)
