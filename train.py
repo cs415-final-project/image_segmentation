@@ -98,6 +98,13 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4):
     else:
         model_name = f"{args.model}_mse"
         loss_func = torch.nn.MSELoss()
+
+    #Checkpoint check
+    if os.path.exists(os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth")):
+        print("Checkpoint found! Restarting from saved model...")
+        checkpoint = torch.load(os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth"))
+        model.load_state_dict(checkpoint)
+
     #Writer
     writer = SummaryWriter(f"{args.tensorboard_logdir}{model_name}")
     
@@ -160,8 +167,7 @@ def train(args, model, optimizer, train_loader, valloader, batch_size=4):
                 if miou > max_miou:
                     max_miou = miou
                     os.makedirs(args.checkpoint_path, exist_ok=True)
-                    torch.save(model.state_dict(),
-                            os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth"))
+                    torch.save(model.state_dict(), os.path.join(args.checkpoint_path, f"best_model_{model_name}.pth"))
 
                 writer.add_scalar('epoch/precision_val', precision, epoch)
                 writer.add_scalar('epoch/overall miou val', miou, epoch)
@@ -197,7 +203,7 @@ def main():
         optimizer = torch.optim.SGD(model.parameters(), lr=lr[args.model], weight_decay=weight_decay[args.model], momentum=0.9)
 
     train(args, model, optimizer, train_loader, val_loader)
-    val(args, model, val_data, "final")
+    val(args, model, val_loader, "final")
 
 if __name__ == '__main__':
     main()
