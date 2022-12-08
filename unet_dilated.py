@@ -33,7 +33,7 @@ class UNET(nn.Module):
         # Down part of UNET
         i=0
         for feature in features:
-            self.downs.append(DoubleConv(in_channels, feature,dilation[i]))
+            self.downs.append(DoubleConv(in_channels, feature, list(reversed(dilation))[i]))
             i+=1
             in_channels = feature
 
@@ -45,7 +45,7 @@ class UNET(nn.Module):
                     feature*2, feature, kernel_size=2, stride=2,
                 )
             )
-            self.ups.append(DoubleConv(feature*2, feature,dilation[i]))
+            self.ups.append(DoubleConv(feature*2, feature, dilation[i]))
             i+=1
 
         self.bottleneck = DoubleConv(features[-1], features[-1]*2)

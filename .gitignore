@@ -1,3 +1,4 @@
 initmodel
 .DS_Store
 *.pyc
+output/training.png
