@@ -69,7 +69,6 @@ class UNET(nn.Module):
 
         return self.final_conv(x)
 
-
 if __name__ == "__main__":
     x = torch.randn((1, 3, 512, 1024))
     model = UNET(in_channels=3, out_channels=19)

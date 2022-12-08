@@ -2,8 +2,8 @@ import numpy as np
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
-from unet import UNET
-from unet_dilated import UNET as DUNET
+from model.unet import UNET
+from model.unet_dilated import UNET as DUNET
 from model.build_bisenet import BiSeNet
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -31,7 +31,6 @@ parser.add_argument('--output_path',help='path for saving the predictions of the
 parser.add_argument('--tensorboard_logdir',help='path for saving the runs data for tensorboard', type=str, default="output/segmentation/runs/")
 parser.add_argument('--save_images_step',help='step for saving predictions output during validation', type=int, default=1)
 parser.add_argument('--validation_step',help='step for saving performing validation', type=int, default=1)
-
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
